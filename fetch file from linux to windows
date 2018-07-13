@@ -1,0 +1,165 @@
+#encoding=utf-8
+import sys, shutil, os, string, time, subprocess
+import paramiko
+import re
+
+host='ip'
+port=22
+timeout=30
+user='id'
+server_path='remote linux path'
+local_path='local windows path'
+
+srcFiles=[]
+destPath='remote windows share folder';
+NetUsePath='remote windows share path';
+
+class RemoteConnect(object):
+
+	def __init__(self,host,port,user):
+		self.host=host
+		self.port=port
+		self.user=user
+		self.timeout=30
+		self.trans=None
+		self.sftp=None
+		self.chan=None
+		self.try_times=3
+		
+	@property
+	def sftp(self):
+		return self._sftp
+	@sftp.setter
+	def sftp(self,sftp):
+		self._sftp=sftp
+	@property
+	def trans(self):
+		return self._trans
+	@trans.setter
+	def trans(self,trans):
+		self._trans=trans
+	@property
+	def chan(self):
+		return self._chan
+	@chan.setter
+	def chan(self,chan):
+		self._chan=chan
+	@property
+	def host(self):
+		return self._host
+	@host.setter
+	def host(self,host):
+		self._host=host
+	@property
+	def port(self):
+		return self._port
+	@port.setter
+	def port(self,port):
+		self._port=port
+	@property
+	def user(self):
+		return self._user
+	@user.setter
+	def user(self,user):
+		self._user=user
+	@property
+	def password(self):
+		self._password='password'
+		return self._password
+
+	def sshConnect(self):
+		try:
+			self.trans=paramiko.Transport((self.host,self.port))
+			self.trans.connect(username=self.user,password=self.password)
+			self.sftp=paramiko.SFTPClient.from_transport(self.trans)
+			self.chan=self.trans.open_session()
+			self.chan.settimeout(self.timeout)
+			self.chan.get_pty()
+			self.chan.invoke_shell()
+			#print('trans instance %s ' % self.trans+'\n') 
+			#print('sftp instance %s ' % self.sftp+'\n')			
+		except Exception as e:
+			print(e)
+			
+	def close_Con(self):
+		print('close sftp,trans,chan.')
+		self.sftp.close()
+		self.trans.close()
+		self.chan.close()
+			
+	def sendCmd(self,cmd):
+		cmd +='\r'
+		#p = re.compile(r':~ #')
+		result=''
+		self.chan.send(cmd)
+		time.sleep(0.5)
+		result=self.chan.recv(65535)
+		result=result.decode('utf-8')
+		return result
+		
+	def fetchFile(self,filenames):
+		global srcFiles
+		filenames=filenames.strip('\r')
+		filelist=filenames.split('/')
+		local_path='D:/eason/'+filelist[len(filelist)-1]
+		srcFiles.append(local_path)
+		print(filenames)
+		self.sftp.get(filenames,local_path)
+				
+def netUseToPath(drivePath,usrName,pincode,netUsePath):
+	netUseCmd="net use"+" "+drivePath+":"+" "+netUsePath+" "+pincode+" "+"/user:"+usrName;
+	reCode=0;
+	if os.path.exists(drivePath+':\\') is False:
+		try:
+			reCode=runCmd(netUseCmd);
+			if reCode!=0:
+				raise Exception('mounting net dirve '+netUsePath+' failed!');
+			print('\nnet drive '+drivePath+' has been mounted!');
+		except Exception as e:
+			print(e);
+			raise Exception('failure on netUseToPath function!');
+		finally:
+			return reCode;
+	else:
+		print('net drive is already mounted!');
+		return reCode;
+
+def runCmd(cmd):
+	try:
+		p=subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT);
+		(stdoutput,erroutput)=p.communicate();
+	except Exception as e:
+		raise Exception('\nreturncode '+str(p.returncode)+' on runCmd.');
+	finally:
+		return p.returncode;
+		
+def cpFile(local_path,destpath):
+	try:
+		#print(local_path)
+		shutil.copy(local_path,destpath)
+	except Exception as e:
+		print(e)
+		raise Exception('file copy failed on cpFile function!');
+		
+if __name__=='__main__':
+	try:		
+		sshC=RemoteConnect('ip',22,'id')
+		sshC.sshConnect()
+		mktFile=sshC.sendCmd('find 'remote linux path' -type f ! -mtime -0 -and -mtime -1')
+		mktList=mktFile.split('\n')	
+		for item in mktList:
+			if item.strip().endswith('.msg'):
+				sshC.fetchFile(item)			
+	except Exception as e:
+		print(e)
+	finally:
+		sshC.close_Con()
+		
+	try:
+		for item in srcFiles:
+			#print(item)
+			netUseToPath('x','id','password',NetUsePath)
+			print('Copying %s to dest path....' % item)
+			cpFile(item,destPath)
+	except Exception as e:
+		print(e)
