@@ -1,0 +1,52 @@
+#Find more detail for pcf and mq command formats 
+#https://www.ibm.com/support/knowledgecenter/en/SSFKSJ_7.5.0/com.ibm.mq.javadoc.doc/WMQJavaClasses/com/ibm/mq/pcf/package-summary.html
+#https://www.ibm.com/support/knowledgecenter/SSFKSJ_7.1.0/com.ibm.mq.doc/pc10600_.htm?view=embed
+#encoding=utf-8
+import sys,os,time,re,pymqi
+
+def connMq():
+	qmgr_name='qmgr'
+	chl='SYSTEM.DEF.SVRCONN'
+	host='ip'
+	port='mq port'
+	conn_info='%s(%s)' % (host,port)
+	prefix='*'
+	try:
+		qmgr=pymqi.connect(qmgr_name,chl,conn_info)
+		pcf=pymqi.PCFExecute(qmgr)	
+		res_qm_status=pcf.MQCMD_INQUIRE_Q_MGR_STATUS()
+		qm_stat_header=['QMGR Name','QMGR Status','Current Connections']
+		qm_stat_l=[];
+		for qm in res_qm_status:
+			qm_stat_l.append(qm[pymqi.CMQC.MQCA_Q_MGR_NAME])
+			if qm[pymqi.CMQCFC.MQIACF_Q_MGR_STATUS]==2:
+				qm_stat_l.append('RUNNING')
+			else:
+				qm_stat_l.append('unknow')
+      #Fetch application connections mq from 'MQCMD_INQUIRE_Q_MGR_STATUS'
+			qm_stat_l.append(qm[pymqi.CMQCFC.MQIACF_CONNECTION_COUNT])
+			
+		outPutFormat(qm_stat_header,qm_stat_l)
+	except:
+		raise
+	finally:
+		qmgr.disconnect()
+		
+#format the output file for itrs    
+def outPutFormat(qm_stat_header,qm_stat_l):
+	headers=qm_stat_header
+	qmgrs=qm_stat_l
+	header=''
+	qmStatus=''
+	for h in headers:
+		header=header+h+','
+	print(header[0:len(header)-1])
+	for qm in qmgrs:
+		qmStatus=qmStatus+str(qm).strip()+','
+	print(qmStatus[0:len(qmStatus)-1])
+		
+if __name__=='__main__':
+	connMq()
+	
+	
+	
