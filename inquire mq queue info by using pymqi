@@ -1,0 +1,54 @@
+#Find more detail for mq pcf and mq command format
+#https://www.ibm.com/support/knowledgecenter/SSFKSJ_7.1.0/com.ibm.mq.doc/pc10600_.htm?view=embed
+#https://www.ibm.com/support/knowledgecenter/en/SSFKSJ_7.5.0/com.ibm.mq.javadoc.doc/WMQJavaClasses/com/ibm/mq/pcf/package-summary.html
+#encoding=utf-8
+import sys,os,time,re,pymqi
+
+def connMq():
+	qmgr_name='qmgr'
+	chl='SYSTEM.DEF.SVRCONN'
+	host='ip'
+	port='mq port'
+	conn_info='%s(%s)' % (host,port)
+	prefix='*'
+	queue_type='pymqi.CMQC.MQQT_LOCAL'
+	args={pymqi.CMQC.MQCA_Q_NAME: prefix, pymqi.CMQC.MQIA_Q_TYPE: queue_type}
+	try:
+		qmgr=pymqi.connect(qmgr_name,chl,conn_info)
+		pcf=pymqi.PCFExecute(qmgr)
+	
+		response=pcf.MQCMD_INQUIRE_Q(args)
+		queue_header=['Queue Name','Queue current depth','Queue Max depth']
+		queue_stats=[]
+		for q_info in response:
+			q_name=q_info[pymqi.CMQC.MQCA_Q_NAME]
+			if (re.match('^GW',q_name) or re.match('^Q',q_name)):
+				try:	
+          #fetch q max depth and current depth
+					qstat=q_name.strip()+','+str(q_info[pymqi.CMQC.MQIA_CURRENT_Q_DEPTH])+','+str(q_info[pymqi.CMQC.MQIA_MAX_Q_DEPTH])
+					queue_stats.append(qstat)
+				except:
+					raise
+		outPutFormat(queue_header,queue_stats)
+	except:
+		raise
+	finally:
+		qmgr.disconnect()
+
+#format output file for itrs
+def outPutFormat(queue_header,queue_stats):
+	headers=queue_header
+	queues=queue_stats
+	header=''
+	qstat=''
+	for h in headers:
+		header=header+h+','
+	print(header[0:len(header)-1])
+	for qstat in queues:
+		print(qstat)
+		
+if __name__=='__main__':
+	connMq()
+	
+	
+	
